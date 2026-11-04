@@ -12,5 +12,10 @@ export default async function FreeTalkPage() {
     .select("target_language")
     .eq("id", user!.id)
     .single();
-  return <FreeTalk speechLang={langCode(profile?.target_language ?? "")} />;
+  return (
+    <FreeTalk
+      speechLang={langCode(profile?.target_language ?? "")}
+      language={profile?.target_language ?? undefined}
+    />
+  );
 }

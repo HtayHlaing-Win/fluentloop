@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { Feedback } from "@/lib/types";
+import Container from "@/components/Container";
 
 export default async function SessionSummary({ params }: { params: { id: string } }) {
   const supabase = createClient();
@@ -31,9 +32,11 @@ export default async function SessionSummary({ params }: { params: { id: string 
   const sc = session.scenarios as unknown as { title: string } | null;
 
   return (
-    <>
+    <Container>
       <h1>Lesson complete</h1>
-      <p className="muted">{sc?.title ?? `Free Talk (${session.persona})`} &middot; {turns?.length ?? 0} turns</p>
+      <p className="mt-1 text-muted-foreground">
+        {sc?.title ?? `Free Talk (${session.persona})`} &middot; {turns?.length ?? 0} turns
+      </p>
       <div className="stats">
         <div className="card stat"><b>{session.overall_score ?? 0}</b><span className="muted">Overall</span></div>
         <div className="card stat"><b>{mean("grammar_score")}</b><span className="muted">Grammar</span></div>
@@ -41,7 +44,7 @@ export default async function SessionSummary({ params }: { params: { id: string 
         <div className="card stat"><b>{mean("vocabulary_score")}</b><span className="muted">Vocabulary</span></div>
       </div>
 
-      <div className="grid">
+      <div className="grid gap-4 md:grid-cols-2">
         <div className="card">
           <h2>Corrections</h2>
           {!corrections.length ? <p className="muted">None this session.</p> : corrections.map((c, i) => (
@@ -56,16 +59,16 @@ export default async function SessionSummary({ params }: { params: { id: string 
         </div>
       </div>
 
-      <div className="card" style={{ marginTop: "1rem" }}>
+      <div className="card mt-4">
         <h2>Transcript</h2>
         {(turns ?? []).map((t) => (
           <p key={t.id}><b>You:</b> {t.user_transcript}<br /><b>Partner:</b> {t.ai_text}</p>
         ))}
       </div>
-      <p className="row" style={{ marginTop: "1rem" }}>
+      <div className="mt-6 flex flex-wrap gap-3">
         <Link className="btn" href="/app/scenarios">More scenarios</Link>
         <Link className="btn secondary" href="/app/flashcards">Review vocabulary</Link>
-      </p>
-    </>
+      </div>
+    </Container>
   );
 }
