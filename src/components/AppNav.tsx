@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, Layers, LayoutDashboard, LogOut, MessageCircle, Shield, User, type LucideIcon } from "lucide-react";
+import { BookOpen, LayoutDashboard, LogOut, MessageCircle, Shield, User, type LucideIcon } from "lucide-react";
 import Brand from "./Brand";
 
 interface NavItem {
@@ -27,7 +27,6 @@ export default function AppNav({
   const items: NavItem[] = [
     { href: "/app/scenarios", label: "Scenarios", icon: BookOpen, also: ["/app/practice"] },
     { href: "/app/free-talk", label: "Free Talk", icon: MessageCircle },
-    { href: "/app/flashcards", label: "Practice", icon: Layers },
     { href: "/app/dashboard", label: "Dashboard", icon: LayoutDashboard, also: ["/app/sessions"] },
     { href: "/app/profile", label: displayName, icon: User },
   ];
