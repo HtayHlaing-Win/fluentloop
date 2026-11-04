@@ -131,7 +131,7 @@ export default async function ScenariosPage({ searchParams }: { searchParams: Fi
         ) : (
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {scenarios.map((s) => {
-              const visual = categoryVisual(s.category);
+              const visual = categoryVisual(s.category, s.title);
               const Icon = visual.icon;
               return (
                 <Link

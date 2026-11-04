@@ -12,10 +12,24 @@ const VISUALS: Record<string, { icon: LucideIcon; photo: string }> = {
   Emergency: { icon: HeartPulse, photo: "photo-1631815589968-fdb09a223b1e" },
 };
 
-export function categoryVisual(category: string | null | undefined) {
+/** Own photo for each default scenario, so cards in one category don't repeat. */
+const TITLE_PHOTOS: Record<string, string> = {
+  "ordering at a restaurant": "photo-1414235077428-338989a2e8c0",
+  "buying groceries": "photo-1542838132-92c53300491e",
+  "asking for directions": "photo-1488646953014-85cb44e25828",
+  "checking into a hotel": "photo-1566073771259-6a8506099945",
+  "job interview": "photo-1521791136064-7986c2920216",
+  "meeting a new colleague": "photo-1522071820081-009f0129c71c",
+  "making friends at a party": "photo-1529156069898-49953e39b3ac",
+  "visiting a doctor": "photo-1576091160399-112ba8d25d1d",
+  "lost wallet": "photo-1453873531674-2151bcd01707",
+};
+
+export function categoryVisual(category: string | null | undefined, title?: string | null) {
   const v = VISUALS[category ?? ""] ?? VISUALS["Daily Life"];
+  const photo = TITLE_PHOTOS[(title ?? "").trim().toLowerCase()] ?? v.photo;
   return {
     icon: v.icon,
-    photoUrl: (w: number, h: number) => `https://images.unsplash.com/${v.photo}?w=${w}&h=${h}&fit=crop&auto=format`,
+    photoUrl: (w: number, h: number) => `https://images.unsplash.com/${photo}?w=${w}&h=${h}&fit=crop&auto=format`,
   };
 }
