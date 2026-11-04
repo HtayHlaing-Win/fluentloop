@@ -67,7 +67,6 @@ export default async function SessionSummary({ params }: { params: { id: string 
       </div>
       <div className="mt-6 flex flex-wrap gap-3">
         <Link className="btn" href="/app/scenarios">More scenarios</Link>
-        <Link className="btn secondary" href="/app/flashcards">Review vocabulary</Link>
       </div>
     </Container>
   );
