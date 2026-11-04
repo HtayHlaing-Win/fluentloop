@@ -246,7 +246,7 @@ export default function Conversation(props: {
     router.push(`/app/sessions/${sessionId}`);
   }
 
-  const visual = props.scenarioId != null ? categoryVisual(props.category) : null;
+  const visual = props.scenarioId != null ? categoryVisual(props.category, props.title) : null;
   const BannerIcon = visual?.icon;
   const back = props.scenarioId != null
     ? { href: "/app/scenarios", label: "Scenarios" }
