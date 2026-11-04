@@ -12,7 +12,7 @@ export default async function PracticePage({ params }: { params: { scenarioId: s
     data: { user },
   } = await supabase.auth.getUser();
   const [{ data: scenario }, { data: profile }] = await Promise.all([
-    supabase.from("scenarios").select("id, title").eq("id", id).eq("is_active", true).maybeSingle(),
+    supabase.from("scenarios").select("id, title, category").eq("id", id).eq("is_active", true).maybeSingle(),
     supabase.from("profiles").select("target_language").eq("id", user!.id).single(),
   ]);
   if (!scenario) notFound();
@@ -21,6 +21,8 @@ export default async function PracticePage({ params }: { params: { scenarioId: s
     <Conversation
       scenarioId={scenario.id}
       title={scenario.title}
+      category={scenario.category}
+      language={profile?.target_language}
       speechLang={langCode(profile?.target_language ?? "")}
     />
   );

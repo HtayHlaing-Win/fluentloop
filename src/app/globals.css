@@ -1,44 +1,276 @@
+@import "tailwindcss";
+
+/* ------------------------------------------------------------------ */
+/* Design tokens (from the LinguistAI design). Light by default, dark  */
+/* follows the OS setting, as the app did before.                      */
+/* ------------------------------------------------------------------ */
 :root {
-  --bg: #f6f7fb; --card: #ffffff; --ink: #1b1f2a; --muted: #667085; --line: #e3e6ee;
-  --brand: #4f46e5; --brand-ink: #ffffff; --good: #16a34a; --warn: #d97706; --bad: #dc2626;
+  color-scheme: light;
+  --background: #f8f9ff;
+  --foreground: #0f0f23;
+  --card: #ffffff;
+  --primary: #4f46e5;
+  --primary-foreground: #ffffff;
+  --secondary: #f0effe;
+  --secondary-foreground: #4f46e5;
+  --muted: #f1f2f8;
+  --muted-foreground: #6b7280;
+  --accent: #7c3aed;
+  --accent-foreground: #ffffff;
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+  --success: #16a34a;
+  --warning: #d97706;
+  --border: rgba(79, 70, 229, 0.12);
+  --input-background: #f4f5fd;
+  --ring: #4f46e5;
+
+  --cefr-a1: #16a34a;
+  --cefr-a2: #059669;
+  --cefr-b1: #2563eb;
+  --cefr-b2: #7c3aed;
+  --cefr-c1: #be185d;
+  --cefr-c2: #d97706;
 }
+
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0f1117; --card: #181b24; --ink: #eef0f6; --muted: #98a2b3; --line: #2a2f3c;
-    --brand: #818cf8; --brand-ink: #0f1117;
+    color-scheme: dark;
+    --background: #0f1117;
+    --foreground: #eef0f6;
+    --card: #181b24;
+    --primary: #818cf8;
+    --primary-foreground: #0f1117;
+    --secondary: #23264a;
+    --secondary-foreground: #a5b4fc;
+    --muted: #1f232e;
+    --muted-foreground: #98a2b3;
+    --accent: #a78bfa;
+    --accent-foreground: #0f1117;
+    --destructive: #f87171;
+    --destructive-foreground: #0f1117;
+    --success: #4ade80;
+    --warning: #fbbf24;
+    --border: rgba(165, 180, 252, 0.16);
+    --input-background: #1c202b;
+    --ring: #818cf8;
+
+    --cefr-a1: #4ade80;
+    --cefr-a2: #34d399;
+    --cefr-b1: #60a5fa;
+    --cefr-b2: #a78bfa;
+    --cefr-c1: #f472b6;
+    --cefr-c2: #fbbf24;
   }
 }
-* { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
-a { color: var(--brand); text-decoration: none; }
-h1 { font-size: 1.7rem; margin: 0 0 .25rem; } h2 { font-size: 1.15rem; margin: 0 0 .5rem; }
-.wrap { max-width: 1040px; margin: 0 auto; padding: 1.25rem 1rem 3rem; }
-.nav { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; padding: .75rem 1rem; background: var(--card); border-bottom: 1px solid var(--line); }
-.nav .brand { font-weight: 700; color: var(--ink); margin-right: auto; }
-.nav a.active { font-weight: 600; }
-.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 1rem; }
-.grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
-.stats { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin: 1rem 0; }
-.stat b { display: block; font-size: 1.6rem; }
-.muted { color: var(--muted); font-size: .9rem; }
-.btn { display: inline-block; border: 0; border-radius: 8px; padding: .55rem 1rem; background: var(--brand); color: var(--brand-ink); font: inherit; font-weight: 600; cursor: pointer; }
-.btn.secondary { background: transparent; color: var(--ink); border: 1px solid var(--line); }
-.btn.danger { background: var(--bad); color: #fff; }
-.btn:disabled { opacity: .5; cursor: not-allowed; }
-input, select, textarea { width: 100%; padding: .55rem .7rem; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--ink); font: inherit; }
-label { display: block; font-weight: 600; margin: .75rem 0 .25rem; }
-.form { max-width: 420px; margin: 3rem auto; }
-.pill { display: inline-block; padding: .1rem .55rem; border-radius: 999px; background: var(--line); font-size: .8rem; margin-right: .3rem; }
-.err { color: var(--bad); } .ok { color: var(--good); }
-table { width: 100%; border-collapse: collapse; } th, td { text-align: left; padding: .5rem; border-bottom: 1px solid var(--line); font-size: .92rem; vertical-align: top; }
-.inline { display: inline; } .row { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; }
-.chat { display: grid; grid-template-columns: 1fr 320px; gap: 1rem; }
-@media (max-width: 800px) { .chat { grid-template-columns: 1fr; } }
-.msgs { height: 55vh; overflow-y: auto; display: flex; flex-direction: column; gap: .6rem; }
-.msg { max-width: 85%; padding: .6rem .8rem; border-radius: 12px; background: var(--line); }
-.msg.user { align-self: flex-end; background: var(--brand); color: var(--brand-ink); }
-.score { display: flex; justify-content: space-between; } .bar { height: 6px; background: var(--line); border-radius: 4px; margin-bottom: .5rem; }
-.bar i { display: block; height: 100%; background: var(--brand); border-radius: 4px; }
-.flash { text-align: center; min-height: 180px; display: flex; flex-direction: column; justify-content: center; cursor: pointer; }
-.flash .word { font-size: 2rem; font-weight: 700; }
-.hero { text-align: center; padding: 4rem 1rem 2rem; } .hero h1 { font-size: 2.4rem; }
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-border: var(--border);
+  --color-input-background: var(--input-background);
+  --color-ring: var(--ring);
+
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Plus Jakarta Sans", "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+/* ------------------------------------------------------------------ */
+/* Base                                                                */
+/* ------------------------------------------------------------------ */
+@layer base {
+  *,
+  ::before,
+  ::after,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--border);
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+  }
+  h1 {
+    font-size: 1.75rem;
+    font-weight: 800;
+    letter-spacing: -0.025em;
+    line-height: 1.2;
+  }
+  h2 {
+    font-size: 1.2rem;
+    font-weight: 700;
+    line-height: 1.3;
+  }
+  h3 {
+    font-size: 1.05rem;
+    font-weight: 700;
+    line-height: 1.35;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled),
+  summary {
+    cursor: pointer;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Shared classes. Kept because the admin portal and a few user pages  */
+/* use them; they now carry the new look. Utilities always win.        */
+/* ------------------------------------------------------------------ */
+@layer components {
+  .wrap {
+    @apply mx-auto w-full max-w-6xl px-4 pt-6 pb-12;
+  }
+  .wrap > h1 {
+    margin-bottom: 1rem;
+  }
+
+  .nav {
+    @apply sticky top-0 z-50 flex h-16 items-center gap-1 overflow-x-auto border-b bg-card/90 px-4 backdrop-blur-md sm:px-6;
+  }
+  .nav a {
+    @apply rounded-lg px-3 py-2 text-sm whitespace-nowrap text-muted-foreground transition-colors hover:bg-muted hover:text-foreground;
+  }
+  .nav a.brand {
+    @apply mr-auto pl-0 text-lg font-bold text-foreground hover:bg-transparent;
+    font-family: var(--font-display);
+  }
+
+  .card {
+    @apply rounded-2xl border bg-card p-5;
+  }
+  :where(.wrap, .card) p {
+    margin-block: 0.5rem;
+  }
+  :where(.wrap, .card) :is(h1, h2) + p {
+    margin-top: 0;
+  }
+  :where(.card) h2 {
+    margin-bottom: 0.5rem;
+  }
+  :where(.card) label {
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 500;
+    margin: 0.75rem 0 0.25rem;
+  }
+
+  .card
+    :is(
+      input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]),
+      select,
+      textarea
+    ) {
+    @apply w-full rounded-xl border bg-input-background px-3.5 py-2.5 text-sm transition focus:border-primary focus:ring-2 focus:ring-primary/30 focus:outline-none;
+  }
+
+  .card table {
+    @apply w-full border-collapse;
+  }
+  .card th,
+  .card td {
+    @apply border-b px-2 py-2 text-left align-top text-sm;
+  }
+  .card th {
+    @apply text-xs font-semibold tracking-wide text-muted-foreground uppercase;
+  }
+  .card tr:last-child td {
+    border-bottom-width: 0;
+  }
+
+  .stats {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    margin: 1.25rem 0;
+  }
+  .stat b {
+    @apply block font-display text-3xl leading-none font-extrabold;
+  }
+  .stat span {
+    @apply mt-1.5 block text-sm;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn.secondary {
+    @apply border bg-transparent text-foreground hover:bg-muted hover:opacity-100;
+  }
+  .btn.danger {
+    @apply bg-destructive text-destructive-foreground;
+  }
+
+  .row {
+    @apply flex flex-wrap items-center gap-2;
+  }
+  .inline {
+    display: inline;
+  }
+  .muted {
+    @apply text-sm text-muted-foreground;
+  }
+  .pill {
+    @apply mr-1 inline-block rounded-full bg-secondary px-2.5 py-0.5 text-xs font-semibold text-secondary-foreground;
+  }
+  .err {
+    @apply text-destructive;
+  }
+  .ok {
+    @apply text-success;
+  }
+  .wrap a:not([class]) {
+    @apply text-primary hover:underline;
+  }
+}
+
+/* Recording indicator (CSS only, it does not measure the microphone). */
+@keyframes wave {
+  0%,
+  100% {
+    transform: scaleY(0.2);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+.wave-bar {
+  transform-origin: bottom;
+  animation: wave 900ms ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .wave-bar {
+    animation: none;
+    transform: scaleY(0.5);
+  }
+}
