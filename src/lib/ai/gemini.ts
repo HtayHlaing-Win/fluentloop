@@ -1,6 +1,6 @@
 import type { Feedback } from "@/lib/types";
 
-const MODELS = (process.env.GEMINI_MODELS ?? "gemini-2.5-flash,gemini-2.5-flash-lite,gemini-2.0-flash")
+const MODELS = (process.env.GEMINI_MODELS ?? "gemini-3.6-flash,gemini-3.8-flash,gemini-3.5-flash-lite,gemini-2.5-flash")
   .split(",")
   .map((m) => m.trim())
   .filter(Boolean);
@@ -12,7 +12,6 @@ async function generate(opts: {
   system?: string;
   parts: Part[];
   json?: boolean;
-  temperature?: number;
 }): Promise<string | null> {
   const key = process.env.GEMINI_API_KEY;
   if (!key) {
@@ -24,8 +23,9 @@ async function generate(opts: {
     contents: [{ role: "user", parts: opts.parts }],
     ...(opts.system ? { systemInstruction: { parts: [{ text: opts.system }] } } : {}),
     generationConfig: {
-      temperature: opts.temperature ?? (opts.json ? 0.3 : 0.7),
-      maxOutputTokens: 1200,
+      // No temperature: newer Gemini models reject it. Extra headroom because
+      // their internal thinking counts toward the output limit.
+      maxOutputTokens: 4096,
       ...(opts.json ? { responseMimeType: "application/json" } : {}),
     },
   };
@@ -71,7 +71,6 @@ export async function transcribeAudio(
         text: `Transcribe this audio exactly as spoken. The speaker is a learner of ${language}. Return only the transcript text, with no commentary.`,
       },
     ],
-    temperature: 0,
   });
   // null = the AI call failed; "" = it worked but heard no speech.
   return text;
