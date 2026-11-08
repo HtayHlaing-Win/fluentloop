@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BookOpen, Flame, Layers, Mic, Target, TrendingUp, Trophy, Star } from "lucide-react";
+import { BookOpen, ChevronRight, Flame, Layers, Mic, Target, TrendingUp, Trophy, Star } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { LineTrend } from "@/components/TrendChart";
 import Container from "@/components/Container";
@@ -227,9 +227,15 @@ export default async function DashboardPage() {
               <div className="text-xs text-muted-foreground">words collected from your conversations</div>
             </div>
           </div>
+          <Link
+            href="/app/free-talk?tab=vocabulary"
+            className="mt-4 flex items-center gap-1 text-[0.85rem] font-medium text-primary hover:underline"
+          >
+            Review vocabulary <ChevronRight size={14} aria-hidden="true" />
+          </Link>
           <div className="mt-4 rounded-xl bg-secondary p-3">
             <p className="text-[0.78rem] font-medium text-secondary-foreground">
-              💡 Tip: new words from every lesson are added automatically, so the more you talk the more you collect.
+              💡 Tip: new words from every lesson are added automatically, so the more you talk the more you can review.
             </p>
           </div>
         </section>

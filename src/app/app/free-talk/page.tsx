@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { langCode } from "@/lib/languages";
 import FreeTalk from "./FreeTalk";
 
-export default async function FreeTalkPage() {
+export default async function FreeTalkPage({ searchParams }: { searchParams: { tab?: string } }) {
   const supabase = createClient();
   const {
     data: { user },
@@ -16,6 +16,7 @@ export default async function FreeTalkPage() {
     <FreeTalk
       speechLang={langCode(profile?.target_language ?? "")}
       language={profile?.target_language ?? undefined}
+      initialTab={searchParams.tab === "vocabulary" ? "vocabulary" : "talk"}
     />
   );
 }
