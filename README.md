@@ -1,8 +1,10 @@
 # FluentLoop
 
-Practise speaking a new language with an AI conversation partner. Spoken scenarios and Free Talk personas, live feedback, SM-2 flashcards, a progress dashboard and an admin portal.
+Practise speaking a new language with an AI conversation partner. Spoken scenarios and Free Talk personas, live feedback, SM-2 vocabulary practice, a progress dashboard, Free and Pro plans, and an admin portal.
 
-**Stack:** Next.js 14 (App Router, TypeScript) · Supabase (Postgres, Auth, Row Level Security) · Google Gemini (conversation, feedback, speech-to-text) · ElevenLabs (optional voice) · Recharts
+Live demo: https://fluentloop-eight.vercel.app
+
+**Stack:** Next.js 14 (App Router, TypeScript) · Tailwind CSS v4 · Supabase (Postgres, Auth, Row Level Security) · Google Gemini (conversation, feedback, speech-to-text) · ElevenLabs (optional voice) · Recharts
 
 ## Features
 
@@ -14,8 +16,10 @@ Practise speaking a new language with an AI conversation partner. Spoken scenari
 | Live grammar / pronunciation / vocabulary feedback | Session replays with per-turn feedback |
 | Lesson summary, corrections, new words | |
 | Free Talk with 4 personas | |
-| SM-2 spaced-repetition flashcards | |
-| Dashboard: streak, 7-day trend, history | |
+| Vocabulary practice tab (SM-2 spaced repetition) | |
+| Dashboard: streak, 7-day trend, achievements | |
+| Plans page: Free (20 turns/day) or Pro (unlimited), demo checkout | |
+| Daily-limit popup with an upgrade link | |
 
 ## Setup
 
@@ -38,11 +42,26 @@ cp .env.example .env.local     # then fill in your keys
    ```
    An **Admin** link appears in the nav.
 
+Environment variables are listed in `.env.example`. `GEMINI_MODELS` optionally overrides the model fallback order, and `SUPABASE_SERVICE_ROLE_KEY` is required for the Plans page and the admin portal.
+
+### Scripts
+
+| Command | What it does |
+|---|---|
+| `npm run dev` | Start the dev server |
+| `npm run typecheck` | Strict TypeScript check |
+| `npm run build` | Production build |
+| `npm run clean` | Delete the `.next` folder |
+
+CI (`.github/workflows/ci.yml`) runs the type check and a production build on every push and pull request.
+
+> **Windows:** keep the project outside OneDrive (for example `C:\dev\fluentloop`). OneDrive can break `next build` with an `EINVAL readlink .next` error. If it happens, run `npm run clean` and build again.
+
 Use Chrome or Edge for microphone input. `localhost` is allowed over HTTP; deployed sites need HTTPS.
 
 ## Deploy (free)
 
-Push to GitHub, import the repo into [Vercel](https://vercel.com), add the same environment variables from `.env.example`, and deploy.
+Push to GitHub, import the repo into [Vercel](https://vercel.com), add the same environment variables from `.env.example` (tick **Production** and **Preview**), and deploy.
 
 ## How a turn works
 
@@ -56,7 +75,7 @@ Push to GitHub, import the repo into [Vercel](https://vercel.com), add the same 
 6. Generate voice (ElevenLabs, or the browser's speech synthesis) while saving the turn.
 7. Add new vocabulary to flashcards and update the running session score.
 
-If `GEMINI_API_KEY` is missing or every model fails, the app returns a clearly labelled demo reply, so it never breaks a demo. The UI tells the learner when this happens.
+If `GEMINI_API_KEY` is missing or every model fails, the turn is refunded (it does not count towards the daily limit) and the learner sees "The AI tutor is unavailable right now". The server log shows the cause, for example `[gemini] <model> -> HTTP 404`.
 
 ## Security notes
 
@@ -70,6 +89,6 @@ If `GEMINI_API_KEY` is missing or every model fails, the app returns a clearly l
 
 - Stream replies for lower latency, or move to a realtime voice API
 - Background queue for TTS and feedback
-- Real payments for the Pro plan (replace the admin toggle)
+- Real payments for the Pro plan (the checkout is a demo and charges nothing)
 - UI localisation, learner data export and deletion
 - Tests for `sm2`, the pipeline and the admin guard

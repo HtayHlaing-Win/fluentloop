@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "clean": "node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\""
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",
@@ -25,5 +26,9 @@
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "typescript": "^5.5.4"
+  },
+  "description": "AI spoken-language practice: scenarios, Free Talk personas, live feedback, flashcards, dashboard and admin portal.",
+  "engines": {
+    "node": ">=18.18"
   }
 }

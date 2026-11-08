@@ -7,3 +7,9 @@ out
 *.tsbuildinfo
 next-env.d.ts
 .DS_Store
+
+# Deployment / tooling
+.vercel
+*.zip
+npm-debug.log*
+.idea
