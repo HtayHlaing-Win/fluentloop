@@ -58,7 +58,11 @@ export async function processTurn(
   // Transcribe (audio) or use text as-is.
   let userText = "";
   if (input.kind === "text") userText = input.text.trim();
-  else userText = await transcribeAudio(input.audio, input.mimeType, session.language);
+  else {
+    const heard = await transcribeAudio(input.audio, input.mimeType, session.language);
+    if (heard === null) return refundUnavailable(admin, userId, a.used);
+    userText = heard.trim();
+  }
   if (!userText) {
     return {
       ok: false,
@@ -102,6 +106,9 @@ export async function processTurn(
     history,
     userText,
   });
+
+  // Never show a fake reply: hand the turn back and ask the learner to retry.
+  if (result.degraded) return refundUnavailable(admin, userId, a.used);
 
   // TTS and persistence run in parallel.
   const [audioDataUrl] = await Promise.all([
@@ -153,5 +160,22 @@ export async function processTurn(
       dailyLimit: a.lim ?? null,
       degraded: result.degraded,
     },
+  };
+}
+
+/** The AI could not be reached: give the learner their turn back and report it. */
+async function refundUnavailable(
+  admin: ReturnType<typeof createAdminClient>,
+  userId: string,
+  used: number | null | undefined
+): Promise<{ ok: false; status: number; error: string }> {
+  await admin
+    .from("profiles")
+    .update({ daily_turns_used: Math.max((used ?? 1) - 1, 0) })
+    .eq("id", userId);
+  return {
+    ok: false,
+    status: 503,
+    error: "The AI tutor is unavailable right now. Please try again in a moment.",
   };
 }

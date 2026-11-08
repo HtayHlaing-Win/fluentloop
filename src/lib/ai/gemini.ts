@@ -1,6 +1,6 @@
 import type { Feedback } from "@/lib/types";
 
-const MODELS = (process.env.GEMINI_MODELS ?? "gemini-2.5-flash,gemini-2.0-flash")
+const MODELS = (process.env.GEMINI_MODELS ?? "gemini-2.5-flash,gemini-2.5-flash-lite,gemini-2.0-flash")
   .split(",")
   .map((m) => m.trim())
   .filter(Boolean);
@@ -15,7 +15,10 @@ async function generate(opts: {
   temperature?: number;
 }): Promise<string | null> {
   const key = process.env.GEMINI_API_KEY;
-  if (!key) return null;
+  if (!key) {
+    console.error("[gemini] GEMINI_API_KEY is not set on the server");
+    return null;
+  }
 
   const body = {
     contents: [{ role: "user", parts: opts.parts }],
@@ -41,7 +44,7 @@ async function generate(opts: {
         }
       );
       if (!res.ok) {
-        console.warn(`[gemini] ${model} -> HTTP ${res.status}`);
+        console.warn(`[gemini] ${model} -> HTTP ${res.status}: ${(await res.text()).slice(0, 300)}`);
         continue;
       }
       const data = await res.json();
@@ -60,7 +63,7 @@ export async function transcribeAudio(
   audio: Buffer,
   mimeType: string,
   language: string
-): Promise<string> {
+): Promise<string | null> {
   const text = await generate({
     parts: [
       { inlineData: { mimeType, data: audio.toString("base64") } },
@@ -70,7 +73,8 @@ export async function transcribeAudio(
     ],
     temperature: 0,
   });
-  return text ?? "";
+  // null = the AI call failed; "" = it worked but heard no speech.
+  return text;
 }
 
 export interface ConverseInput {
@@ -147,11 +151,11 @@ export async function converse(input: ConverseInput): Promise<ConverseResult> {
   return fallback(input);
 }
 
-/** Used when no API key is set or every model fails, so the app stays demo-able. */
+/** Placeholder result when no API key is set or every model fails. The pipeline never shows it to learners. */
 function fallback(input: ConverseInput): ConverseResult {
   return {
     degraded: true,
-    reply: `(Demo mode, AI unavailable) You said: "${input.userText}". Could you tell me more in ${input.language}?`,
+    reply: `You said: "${input.userText}". Could you tell me more in ${input.language}?`,
     feedback: {
       grammar_score: 70,
       pronunciation_score: 70,
