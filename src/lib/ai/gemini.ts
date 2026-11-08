@@ -1,6 +1,6 @@
 import type { Feedback } from "@/lib/types";
 
-const MODELS = (process.env.GEMINI_MODELS ?? "gemini-2.5-flash,gemini-2.0-flash")
+const MODELS = (process.env.GEMINI_MODELS ?? "gemini-3.6-flash,gemini-3.8-flash,gemini-3.5-flash-lite,gemini-2.5-flash")
   .split(",")
   .map((m) => m.trim())
   .filter(Boolean);
@@ -12,17 +12,20 @@ async function generate(opts: {
   system?: string;
   parts: Part[];
   json?: boolean;
-  temperature?: number;
 }): Promise<string | null> {
   const key = process.env.GEMINI_API_KEY;
-  if (!key) return null;
+  if (!key) {
+    console.error("[gemini] GEMINI_API_KEY is not set on the server");
+    return null;
+  }
 
   const body = {
     contents: [{ role: "user", parts: opts.parts }],
     ...(opts.system ? { systemInstruction: { parts: [{ text: opts.system }] } } : {}),
     generationConfig: {
-      temperature: opts.temperature ?? (opts.json ? 0.3 : 0.7),
-      maxOutputTokens: 1200,
+      // No temperature: newer Gemini models reject it. Extra headroom because
+      // their internal thinking counts toward the output limit.
+      maxOutputTokens: 4096,
       ...(opts.json ? { responseMimeType: "application/json" } : {}),
     },
   };
@@ -41,7 +44,7 @@ async function generate(opts: {
         }
       );
       if (!res.ok) {
-        console.warn(`[gemini] ${model} -> HTTP ${res.status}`);
+        console.warn(`[gemini] ${model} -> HTTP ${res.status}: ${(await res.text()).slice(0, 300)}`);
         continue;
       }
       const data = await res.json();
@@ -60,7 +63,7 @@ export async function transcribeAudio(
   audio: Buffer,
   mimeType: string,
   language: string
-): Promise<string> {
+): Promise<string | null> {
   const text = await generate({
     parts: [
       { inlineData: { mimeType, data: audio.toString("base64") } },
@@ -68,9 +71,9 @@ export async function transcribeAudio(
         text: `Transcribe this audio exactly as spoken. The speaker is a learner of ${language}. Return only the transcript text, with no commentary.`,
       },
     ],
-    temperature: 0,
   });
-  return text ?? "";
+  // null = the AI call failed; "" = it worked but heard no speech.
+  return text;
 }
 
 export interface ConverseInput {
@@ -147,11 +150,11 @@ export async function converse(input: ConverseInput): Promise<ConverseResult> {
   return fallback(input);
 }
 
-/** Used when no API key is set or every model fails, so the app stays demo-able. */
+/** Placeholder result when no API key is set or every model fails. The pipeline never shows it to learners. */
 function fallback(input: ConverseInput): ConverseResult {
   return {
     degraded: true,
-    reply: `(Demo mode, AI unavailable) You said: "${input.userText}". Could you tell me more in ${input.language}?`,
+    reply: `You said: "${input.userText}". Could you tell me more in ${input.language}?`,
     feedback: {
       grammar_score: 70,
       pronunciation_score: 70,
