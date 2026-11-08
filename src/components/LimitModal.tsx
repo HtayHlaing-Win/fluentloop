@@ -46,7 +46,7 @@ export default function LimitModal({
           Your turns reset tomorrow, or upgrade to Pro for unlimited daily practice.
         </p>
         <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-center">
-          <Link href="/app/profile" className="btn rounded-xl px-5">View my plan</Link>
+          <Link href="/app/plans" className="btn rounded-xl px-5">Upgrade to Pro</Link>
           <button ref={closeRef} type="button" onClick={onClose} className="btn secondary rounded-xl px-5">
             Close
           </button>

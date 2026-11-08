@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { updateProfile } from "@/app/actions";
 import { LANGUAGES, LEVELS } from "@/lib/languages";
@@ -40,6 +41,11 @@ export default async function ProfilePage() {
           <div className="text-[0.78rem] break-all text-muted-foreground">{user!.email}</div>
           <div className="mt-2 inline-flex rounded-full bg-secondary px-2.5 py-0.5 text-[0.7rem] font-semibold text-primary">
             {p?.plan === "pro" ? "Pro plan" : "Free plan"}
+          </div>
+          <div className="mt-2">
+            <Link href="/app/plans" className="text-[0.78rem] font-medium text-primary hover:underline">
+              {p?.plan === "pro" ? "Manage plan" : "Upgrade to Pro"}
+            </Link>
           </div>
           <dl className="mt-5 grid grid-cols-2 gap-2 border-t pt-4 text-left">
             <div>
