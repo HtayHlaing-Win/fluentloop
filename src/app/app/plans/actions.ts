@@ -16,14 +16,14 @@ async function setOwnPlan(plan: "free" | "pro"): Promise<string | null> {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
+  // Upsert, so it also works if this account's profile row was never created.
   const { data, error } = await createAdminClient()
     .from("profiles")
-    .update({ plan, daily_turn_limit: plan === "pro" ? null : 20 })
-    .eq("id", user.id)
+    .upsert({ id: user.id, plan, daily_turn_limit: plan === "pro" ? null : 20 }, { onConflict: "id" })
     .select("plan");
   // Check the write really happened, so a failure is never shown as a success.
   if (error) return error.message;
-  if (!data?.length) return "No profile row was updated. Check SUPABASE_SERVICE_ROLE_KEY on the server.";
+  if (!data?.length) return "The database did not confirm the change. Check SUPABASE_SERVICE_ROLE_KEY on the server.";
   revalidatePath("/app", "layout");
   return null;
 }
