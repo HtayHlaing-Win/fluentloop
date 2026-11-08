@@ -7,7 +7,7 @@ import { cancelPro } from "./actions";
 const FREE = ["20 conversation turns per day", "All scenarios and Free Talk personas", "Feedback on every turn", "Progress dashboard"];
 const PRO = ["Unlimited daily turns", "Everything in Free", "Practice as long as you like", "Priority for new features"];
 
-export default async function PlansPage({ searchParams }: { searchParams: { subscribed?: string; cancelled?: string } }) {
+export default async function PlansPage({ searchParams }: { searchParams: { subscribed?: string; cancelled?: string; error?: string } }) {
   const supabase = createClient();
   const {
     data: { user },
@@ -22,12 +22,17 @@ export default async function PlansPage({ searchParams }: { searchParams: { subs
         <p className="mt-2 text-muted-foreground">Start free. Upgrade when you want unlimited practice.</p>
       </div>
 
-      {searchParams.subscribed && (
+      {searchParams.error && (
+        <p className="mx-auto mb-6 max-w-xl rounded-xl border border-destructive/40 px-4 py-3 text-center text-sm text-destructive" role="alert">
+          Could not change your plan: {searchParams.error}
+        </p>
+      )}
+      {searchParams.subscribed && isPro && (
         <p className="mx-auto mb-6 max-w-xl rounded-xl bg-secondary px-4 py-3 text-center text-sm font-medium text-secondary-foreground" role="status">
           You&apos;re now on Pro. Enjoy unlimited daily turns!
         </p>
       )}
-      {searchParams.cancelled && (
+      {searchParams.cancelled && !isPro && (
         <p className="mx-auto mb-6 max-w-xl rounded-xl bg-muted px-4 py-3 text-center text-sm font-medium" role="status">
           Your plan is back to Free.
         </p>
