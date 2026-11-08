@@ -35,7 +35,7 @@ export default function AppNav({
   return (
     <nav className="sticky top-0 z-50 border-b bg-card/90 backdrop-blur-md" aria-label="Main">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-3 px-4 sm:px-6">
-        <Brand href="/" hideTextOnMobile />
+        <Brand href="/app/scenarios" hideTextOnMobile />
 
         <div className="flex items-center gap-1">
           {items.map(({ href, label, icon: Icon, also }) => {
