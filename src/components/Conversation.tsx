@@ -8,6 +8,7 @@ import type { Feedback, TurnResponse } from "@/lib/types";
 import { categoryVisual } from "@/lib/scenario-visuals";
 import { inputClass } from "@/components/form-styles";
 import CoverImage from "@/components/CoverImage";
+import LimitModal from "@/components/LimitModal";
 
 interface Msg { role: "user" | "ai"; text: string; audio?: string }
 
@@ -133,6 +134,7 @@ export default function Conversation(props: {
   const [muted, setMuted] = useState(false);
   const [error, setError] = useState("");
   const [note, setNote] = useState("");
+  const [limitHit, setLimitHit] = useState<{ used?: number; limit?: number | null } | null>(null);
   const recorder = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
   const audioEl = useRef<HTMLAudioElement | null>(null);
@@ -166,6 +168,12 @@ export default function Conversation(props: {
     try {
       const res = await fetch(`/api/sessions/${id}/turn`, { method: "POST", headers, body });
       const j = await res.json();
+      if (res.status === 429) {
+        // Out of free turns: drop the unanswered typed bubble and show the upgrade popup.
+        if (userLabel) setMsgs((m) => m.slice(0, -1));
+        setLimitHit({ used: j.turnsUsed, limit: j.dailyLimit });
+        return;
+      }
       if (!res.ok) throw new Error(j.error ?? "Something went wrong");
       const t = j as TurnResponse;
       setMsgs((m) => {
@@ -365,6 +373,7 @@ export default function Conversation(props: {
 
           {/* Controls */}
           <div className="shrink-0 border-t bg-card px-4 py-4 sm:px-6">
+            {limitHit && <LimitModal used={limitHit.used} limit={limitHit.limit} onClose={() => setLimitHit(null)} />}
             {error && <p className="mb-3 text-center text-sm text-destructive" role="alert">{error}</p>}
             {note && <p className="mb-3 text-center text-sm text-muted-foreground">{note}</p>}
 
