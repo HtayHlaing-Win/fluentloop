@@ -47,3 +47,24 @@ export async function toWav(blob: Blob): Promise<Blob | null> {
     return null;
   }
 }
+
+/**
+ * Loudest sample (0 to 1) in a recording, read from the decoded audio itself.
+ * Returns -1 when the browser cannot decode it, which callers treat as "unknown".
+ */
+export async function audioPeak(blob: Blob): Promise<number> {
+  try {
+    const ctx = new AudioContext();
+    const decoded = await ctx.decodeAudioData(await blob.arrayBuffer());
+    void ctx.close();
+    const ch = decoded.getChannelData(0);
+    let m = 0;
+    for (let i = 0; i < ch.length; i++) {
+      const a = Math.abs(ch[i]);
+      if (a > m) m = a;
+    }
+    return m;
+  } catch {
+    return -1;
+  }
+}

@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, CircleAlert, Trash2, X, CircleCheck, Lightbulb, Mic, Play, Send, Square, Volume2, VolumeX } from "lucide-react";
 import type { Feedback, TurnResponse } from "@/lib/types";
-import { toWav } from "@/lib/audio";
+import { audioPeak, toWav } from "@/lib/audio";
 import { langCode } from "@/lib/languages";
 import { categoryVisual } from "@/lib/scenario-visuals";
 import { inputClass } from "@/components/form-styles";
@@ -162,6 +162,11 @@ export default function Conversation(props: {
   const [draft, setDraft] = useState<{ text?: string; blob?: Blob; url?: string } | null>(null);
   const discard = useRef(false);
   const [noSignal, setNoSignal] = useState(false);
+  // Which microphone to use. Empty = the browser's default (live speech recognition).
+  const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
+  const [deviceId, setDeviceId] = useState("");
+  const micLabel = useRef("");
+  const viaRecognition = useRef(false);
   const recog = useRef<SpeechRec | null>(null);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -170,7 +175,6 @@ export default function Conversation(props: {
   const [error, setError] = useState("");
   const [note, setNote] = useState("");
   const [limitHit, setLimitHit] = useState<{ used?: number; limit?: number | null } | null>(null);
-  const recorder = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
   const audioEl = useRef<HTMLAudioElement | null>(null);
   const mutedRef = useRef(false);
@@ -262,13 +266,38 @@ export default function Conversation(props: {
   }
 
   /** Records raw audio alongside speech recognition: drives the level meter and acts as a fallback. */
+  useEffect(() => {
+    void refreshDevices();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function refreshDevices() {
+    try {
+      const all = await navigator.mediaDevices.enumerateDevices();
+      setDevices(all.filter((d) => d.kind === "audioinput" && d.deviceId));
+    } catch {
+      /* not available */
+    }
+  }
+
+  function noSoundMessage() {
+    const who = micLabel.current ? `"${micLabel.current}"` : "the microphone";
+    return `No sound is reaching ${who}. Pick another microphone below, check Windows Sound settings, or type your message.`;
+  }
+
   async function startCapture() {
     peak.current = 0;
     setLevel(0);
     setNoSignal(false);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: deviceId ? { deviceId: { exact: deviceId } } : true,
+      });
+      micLabel.current = stream.getAudioTracks()[0]?.label ?? "";
+      void refreshDevices();
       const ctx = new AudioContext();
+      // Browsers start an AudioContext suspended unless resumed, which makes the meter read silence.
+      await ctx.resume();
       const an = ctx.createAnalyser();
       an.fftSize = 512;
       ctx.createMediaStreamSource(stream).connect(an);
@@ -292,7 +321,11 @@ export default function Conversation(props: {
         if (capture.current && peak.current < 0.03) setNoSignal(true);
       }, 3000);
     } catch {
-      capture.current = null; // recognition reports permission problems itself
+      capture.current = null;
+      if (!viaRecognition.current) {
+        setRecording(false);
+        setError("Microphone unavailable. Allow access in your browser, choose another microphone, or type instead.");
+      }
     }
   }
 
@@ -356,18 +389,16 @@ export default function Conversation(props: {
         return;
       }
       if (said) return setDraft({ text: said });
-      if (blob && peak.current > 0.05) {
-        // The browser heard nothing but the mic did pick up sound: let the AI transcribe it.
+      // The browser heard no words. If the recording has sound, let the AI transcribe it instead.
+      const loud = blob ? await audioPeak(blob) : 0;
+      if (blob && (loud < 0 || loud > 0.02)) {
         setError("");
         return setDraft({ blob, url: URL.createObjectURL(blob) });
       }
-      setError(
-        peak.current > 0
-          ? "The microphone is too quiet. Move closer or raise its input volume, or type your message."
-          : "No sound is reaching the microphone. Check the input device in Windows and the lock icon in Chrome's address bar, or type your message.",
-      );
+      setError(noSoundMessage());
     };
     recog.current = r;
+    viaRecognition.current = true;
     setError("");
     setRecording(true);
     void startCapture();
@@ -376,8 +407,8 @@ export default function Conversation(props: {
 
   function cancelRecording() {
     discard.current = true;
-    if (recog.current && speechRecognition()) recog.current.stop();
-    else recorder.current?.stop();
+    if (viaRecognition.current && recog.current) recog.current.stop();
+    else void stopAndReview();
   }
 
   function deleteDraft() {
@@ -393,39 +424,36 @@ export default function Conversation(props: {
     else if (d.blob) void sendAudio(d.blob);
   }
 
+  /** Recording without browser speech recognition: the AI transcribes it once the learner sends. */
+  async function stopAndReview() {
+    setRecording(false);
+    const blob = await stopCapture();
+    if (discard.current) {
+      discard.current = false;
+      return;
+    }
+    const loud = blob ? await audioPeak(blob) : 0;
+    if (blob && (loud < 0 || loud > 0.02)) setDraft({ blob, url: URL.createObjectURL(blob) });
+    else setError(noSoundMessage());
+  }
+
   async function toggleMic() {
     const Ctor = speechRecognition();
-    if (Ctor) {
+    // Choosing a specific microphone uses the recorder, because speech recognition cannot pick a device.
+    if (Ctor && !deviceId) {
       if (recording) recog.current?.stop();
       else startLiveSpeech(Ctor);
       return;
     }
-    // Browsers without speech recognition (e.g. Firefox): record audio and transcribe on the server.
     if (recording) {
-      recorder.current?.stop();
+      void stopAndReview();
       return;
     }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const rec = new MediaRecorder(stream);
-      chunks.current = [];
-      rec.ondataavailable = (e) => e.data.size && chunks.current.push(e.data);
-      rec.onstop = async () => {
-        stream.getTracks().forEach((t) => t.stop());
-        setRecording(false);
-        const blob = new Blob(chunks.current, { type: rec.mimeType || "audio/webm" });
-        if (discard.current) {
-          discard.current = false;
-          return;
-        }
-        setDraft({ blob, url: URL.createObjectURL(blob) });
-      };
-      rec.start();
-      recorder.current = rec;
-      setRecording(true);
-    } catch {
-      setError("Microphone unavailable. Allow access in your browser, or type instead.");
-    }
+    viaRecognition.current = false;
+    discard.current = false;
+    setError("");
+    setRecording(true);
+    await startCapture();
   }
 
   async function finish() {
@@ -694,6 +722,30 @@ export default function Conversation(props: {
                     {o.label}
                   </button>
                 ))}
+              </div>
+            )}
+
+            {props.nativeLanguage && props.language && props.nativeLanguage === props.language && (
+              <p className="mt-2 text-center text-xs text-muted-foreground">
+                Your native language is also {props.language}, so translations are off.{" "}
+                <Link href="/app/profile" className="font-medium text-primary hover:underline">Change it in Profile</Link>
+              </p>
+            )}
+            {devices.length > 0 && (
+              <div className="mt-2 flex items-center justify-center gap-2 text-xs">
+                <label htmlFor="mic-device" className="text-muted-foreground">Microphone:</label>
+                <select
+                  id="mic-device"
+                  value={deviceId}
+                  disabled={recording}
+                  onChange={(e) => setDeviceId(e.target.value)}
+                  className="max-w-56 rounded-lg border bg-background px-2 py-1"
+                >
+                  <option value="">Browser default (live text)</option>
+                  {devices.map((d, i) => (
+                    <option key={d.deviceId} value={d.deviceId}>{d.label || `Microphone ${i + 1}`}</option>
+                  ))}
+                </select>
               </div>
             )}
 
