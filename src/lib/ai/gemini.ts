@@ -79,6 +79,8 @@ export async function transcribeAudio(
 export interface ConverseInput {
   scenarioPrompt: string;
   language: string;
+  /** The learner's mother language, used for translations and explanations. */
+  nativeLanguage: string;
   level: string;
   history: { role: "user" | "assistant"; content: string }[];
   userText: string;
@@ -100,15 +102,21 @@ const clamp = (n: unknown, d = 75) => {
  * which halves latency and free-tier quota use compared to two calls.
  */
 export async function converse(input: ConverseInput): Promise<ConverseResult> {
+  const native = input.nativeLanguage || "English";
+  const same = native === input.language;
   const system = [
     `You are a spoken ${input.language} conversation partner for a ${input.level} (CEFR) learner.`,
     input.scenarioPrompt,
+    `The learner's native language is ${native}. They may speak or type in ${native}, in ${input.language}, or a mix: understand all of it and always keep the conversation going in ${input.language}.`,
     `Reply in ${input.language} only, in character, in 1-3 short sentences suited to ${input.level}. End with a question or prompt that keeps the learner talking.`,
     `Also assess the learner's LAST message. Respond with JSON only, in exactly this shape:`,
-    `{"reply": string, "grammar_score": 0-100, "pronunciation_score": 0-100, "vocabulary_score": 0-100,`,
-    ` "corrections": [{"original": string, "corrected": string, "explanation": string (in English)}],`,
-    ` "suggestions": [string (in English)],`,
-    ` "vocabulary": [{"word": string (${input.language}), "translation": string (English), "example": string (${input.language})}]}`,
+    `{"reply": string, "reply_translation": string (the reply translated into ${native}${same ? "; use an empty string" : ""}),`,
+    ` "target_version": string (the learner's last message said naturally in ${input.language}; use an empty string if it was already correct ${input.language}),`,
+    ` "grammar_score": 0-100, "pronunciation_score": 0-100, "vocabulary_score": 0-100,`,
+    ` "corrections": [{"original": string, "corrected": string, "explanation": string (in ${native})}],`,
+    ` "suggestions": [string (in ${native})],`,
+    ` "vocabulary": [{"word": string (${input.language}), "translation": string (${native}), "example": string (${input.language})}]}`,
+    `If the learner wrote in ${native} instead of ${input.language}, give no corrections: fill target_version instead and score grammar and vocabulary 70.`,
     `pronunciation_score can only be estimated from the transcript (spelling and word choice that suggest mispronunciation); keep it conservative.`,
     `Include at most 3 corrections and 3 vocabulary items. Use empty arrays when nothing applies.`,
   ].join("\n");
@@ -140,6 +148,8 @@ export async function converse(input: ConverseInput): Promise<ConverseResult> {
             vocabulary: Array.isArray(j.vocabulary)
               ? j.vocabulary.filter((v: { word?: string }) => v?.word).slice(0, 3)
               : [],
+            reply_translation: typeof j.reply_translation === "string" ? j.reply_translation.trim() : "",
+            target_version: typeof j.target_version === "string" ? j.target_version.trim() : "",
           },
         };
       }

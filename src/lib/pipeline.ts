@@ -35,7 +35,7 @@ export async function processTurn(
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("level")
+    .select("*")
     .eq("id", userId)
     .single();
   const level = profile?.level ?? "A1";
@@ -102,6 +102,7 @@ export async function processTurn(
   const result = await converse({
     scenarioPrompt,
     language: session.language,
+    nativeLanguage: profile?.native_language ?? "English",
     level,
     history,
     userText,

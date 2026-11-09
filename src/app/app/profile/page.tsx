@@ -97,6 +97,28 @@ export default async function ProfilePage() {
           </fieldset>
 
           <fieldset className="rounded-2xl border bg-card p-6">
+            <legend className="sr-only">Native language</legend>
+            <h2 aria-hidden="true">Native language</h2>
+            <p className="mt-1 mb-4 text-[0.85rem] text-muted-foreground">
+              Translations, explanations and flashcard meanings are shown in this language. You can also speak or type in it.
+            </p>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+              {LANGUAGES.map((l) => (
+                <label key={l.name} className="relative">
+                  <input
+                    type="radio"
+                    name="native_language"
+                    value={l.name}
+                    defaultChecked={(p?.native_language ?? "English") === l.name}
+                    className="peer sr-only"
+                  />
+                  <span className={choiceClass}>{l.name}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+
+          <fieldset className="rounded-2xl border bg-card p-6">
             <legend className="sr-only">Level (CEFR)</legend>
             <h2 aria-hidden="true">CEFR level</h2>
             <p className="mt-1 mb-4 text-[0.85rem] text-muted-foreground">Used to match you with appropriate scenarios.</p>

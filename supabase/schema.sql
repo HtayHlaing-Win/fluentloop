@@ -13,6 +13,8 @@ create table if not exists public.profiles (
   last_turn_reset date not null default current_date,
   created_at timestamptz not null default now()
 );
+-- Native (mother) language, shown alongside the target language.
+alter table public.profiles add column if not exists native_language text not null default 'English';
 
 create table if not exists public.scenarios (
   id bigint generated always as identity primary key,
@@ -74,11 +76,12 @@ $$;
 create or replace function public.handle_new_user() returns trigger
 language plpgsql security definer set search_path = public as $$
 begin
-  insert into public.profiles (id, display_name, target_language, level)
+  insert into public.profiles (id, display_name, target_language, native_language, level)
   values (
     new.id,
     coalesce(nullif(new.raw_user_meta_data->>'display_name', ''), split_part(new.email, '@', 1)),
     coalesce(nullif(new.raw_user_meta_data->>'target_language', ''), 'Spanish'),
+    coalesce(nullif(new.raw_user_meta_data->>'native_language', ''), 'English'),
     coalesce(nullif(new.raw_user_meta_data->>'level', ''), 'A1')
   );
   return new;
@@ -132,7 +135,7 @@ create policy "profiles update own" on public.profiles for update
   using (auth.uid() = id) with check (auth.uid() = id);
 
 revoke update on public.profiles from authenticated, anon;
-grant update (display_name, target_language, level) on public.profiles to authenticated;
+grant update (display_name, target_language, native_language, level) on public.profiles to authenticated;
 
 -- scenarios: everyone signed in reads active ones; admins manage all.
 drop policy if exists "scenarios read" on public.scenarios;

@@ -17,10 +17,12 @@ const ICONS: Record<string, LucideIcon> = {
 export default function FreeTalk({
   speechLang,
   language,
+  nativeLanguage,
   initialTab = "talk",
 }: {
   speechLang: string;
   language?: string;
+  nativeLanguage?: string;
   initialTab?: "talk" | "vocabulary";
 }) {
   const [persona, setPersona] = useState<string | null>(null);
@@ -34,6 +36,7 @@ export default function FreeTalk({
         title={`Free Talk: ${p.label}`}
         speechLang={speechLang}
         language={language}
+        nativeLanguage={nativeLanguage}
         starters={p.starters}
       />
     );

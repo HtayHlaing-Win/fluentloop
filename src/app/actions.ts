@@ -20,11 +20,13 @@ export async function updateProfile(formData: FormData) {
   const display_name = String(formData.get("display_name") ?? "").trim().slice(0, 40);
   const target_language = String(formData.get("target_language") ?? "");
   const level = String(formData.get("level") ?? "");
+  const nativeRaw = String(formData.get("native_language") ?? "");
+  const native_language = LANGUAGES.some((l) => l.name === nativeRaw) ? nativeRaw : "English";
   if (!display_name) return;
   if (!LANGUAGES.some((l) => l.name === target_language)) return;
   if (!(LEVELS as readonly string[]).includes(level)) return;
 
-  // RLS plus column-level grants mean only these three columns can change.
-  await supabase.from("profiles").update({ display_name, target_language, level }).eq("id", user.id);
+  // RLS plus column-level grants mean only these columns can change.
+  await supabase.from("profiles").update({ display_name, target_language, native_language, level }).eq("id", user.id);
   revalidatePath("/app", "layout");
 }

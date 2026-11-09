@@ -18,6 +18,10 @@ export interface Feedback {
   corrections: Correction[];
   suggestions: string[];
   vocabulary: VocabItem[];
+  /** The partner's reply translated into the learner's native language. */
+  reply_translation?: string;
+  /** The learner's last message said naturally in the target language (when they did not use it). */
+  target_version?: string;
 }
 
 export interface TurnResponse {
