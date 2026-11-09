@@ -5,12 +5,13 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, CircleAlert, CircleCheck, Lightbulb, Mic, Play, Send, Square, Volume2, VolumeX } from "lucide-react";
 import type { Feedback, TurnResponse } from "@/lib/types";
+import { toWav } from "@/lib/audio";
 import { categoryVisual } from "@/lib/scenario-visuals";
 import { inputClass } from "@/components/form-styles";
 import CoverImage from "@/components/CoverImage";
 import LimitModal from "@/components/LimitModal";
 
-interface Msg { role: "user" | "ai"; text: string; audio?: string }
+interface Msg { role: "user" | "ai"; text: string; audio?: string; translation?: string; targetVersion?: string }
 
 function Meter({ label, value }: { label: string; value: number }) {
   const v = Math.max(0, Math.min(100, value));
@@ -123,11 +124,14 @@ export default function Conversation(props: {
   category?: string;
   /** Learner's target language, shown in the banner. */
   language?: string;
+  /** Learner's mother language, used for translations. */
+  nativeLanguage?: string;
 }) {
   const router = useRouter();
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
+  const [showNative, setShowNative] = useState(true);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [recording, setRecording] = useState(false);
@@ -164,13 +168,14 @@ export default function Conversation(props: {
     setError("");
     const id = await ensureSession();
     if (!id) return setBusy(false);
-    if (userLabel) setMsgs((m) => [...m, { role: "user", text: userLabel }]);
+    // Typed turns show their text now; voice turns show a placeholder until transcribed.
+    setMsgs((m) => [...m, { role: "user", text: userLabel ?? "🎤 Transcribing…" }]);
     try {
       const res = await fetch(`/api/sessions/${id}/turn`, { method: "POST", headers, body });
       const j = await res.json();
       if (res.status === 429) {
         // Out of free turns: drop the unanswered typed bubble and show the upgrade popup.
-        if (userLabel) setMsgs((m) => m.slice(0, -1));
+        setMsgs((m) => m.slice(0, -1));
         setLimitHit({ used: j.turnsUsed, limit: j.dailyLimit });
         return;
       }
@@ -178,13 +183,16 @@ export default function Conversation(props: {
       const t = j as TurnResponse;
       setMsgs((m) => {
         // For audio turns the user bubble is added once we know the transcript.
-        const base = userLabel ? m : [...m, { role: "user" as const, text: t.transcript }];
-        return [...base, { role: "ai", text: t.reply, audio: t.audioDataUrl ?? undefined }];
+        const base: Msg[] = userLabel ? [...m] : [...m.slice(0, -1), { role: "user" as const, text: t.transcript }];
+        // If the learner used their mother language, show how to say it in the target language.
+        if (t.feedback.target_version) base[base.length - 1] = { ...base[base.length - 1], targetVersion: t.feedback.target_version };
+        return [...base, { role: "ai", text: t.reply, audio: t.audioDataUrl ?? undefined, translation: t.feedback.reply_translation || undefined }];
       });
       setFeedback(t.feedback);
       setNote(t.degraded ? "AI provider unavailable: showing demo reply and placeholder feedback." : "");
       if (!mutedRef.current) play(t.reply, t.audioDataUrl ?? undefined);
     } catch (e) {
+      setMsgs((m) => m.slice(0, -1));
       setError((e as Error).message);
     } finally {
       setBusy(false);
@@ -232,12 +240,13 @@ export default function Conversation(props: {
       const rec = new MediaRecorder(stream);
       chunks.current = [];
       rec.ondataavailable = (e) => e.data.size && chunks.current.push(e.data);
-      rec.onstop = () => {
+      rec.onstop = async () => {
         stream.getTracks().forEach((t) => t.stop());
         setRecording(false);
         const blob = new Blob(chunks.current, { type: rec.mimeType || "audio/webm" });
+        const wav = await toWav(blob);
         const form = new FormData();
-        form.append("audio", blob, "speech.webm");
+        form.append("audio", wav ?? blob, wav ? "speech.wav" : "speech.webm");
         void send(form);
       };
       rec.start();
@@ -282,6 +291,16 @@ export default function Conversation(props: {
             <h1 className="truncate text-xl font-extrabold text-white">{props.title}</h1>
           </div>
           <div className="flex shrink-0 items-center gap-2">
+            {props.nativeLanguage && props.nativeLanguage !== props.language && (
+              <button
+                type="button"
+                onClick={() => setShowNative((v) => !v)}
+                aria-pressed={showNative}
+                className="rounded-lg bg-white/20 px-3 py-1.5 text-xs font-semibold backdrop-blur-sm transition-colors hover:bg-white/30"
+              >
+                {props.nativeLanguage}: {showNative ? "on" : "off"}
+              </button>
+            )}
             {props.language && (
               <span className="hidden rounded-lg bg-white/20 px-3 py-1.5 text-xs font-semibold backdrop-blur-sm sm:inline">
                 {props.language}
@@ -333,6 +352,9 @@ export default function Conversation(props: {
                   <Avatar who="ai" />
                   <div className="max-w-lg rounded-2xl rounded-tl-none border bg-card px-4 py-3">
                     <p className="text-[0.9rem] leading-relaxed whitespace-pre-wrap">{m.text}</p>
+                    {showNative && m.translation && (
+                      <p className="mt-1.5 border-t pt-1.5 text-[0.8rem] leading-relaxed whitespace-pre-wrap text-muted-foreground">{m.translation}</p>
+                    )}
                     <button
                       type="button"
                       onClick={() => play(m.text, m.audio)}
@@ -347,6 +369,11 @@ export default function Conversation(props: {
                 <div key={i} className="flex items-start justify-end gap-3">
                   <div className="max-w-lg rounded-2xl rounded-tr-none bg-primary px-4 py-3 text-primary-foreground">
                     <p className="text-[0.9rem] leading-relaxed whitespace-pre-wrap">{m.text}</p>
+                    {m.targetVersion && (
+                      <p className="mt-1.5 border-t border-white/30 pt-1.5 text-[0.8rem] leading-relaxed">
+                        In {props.language}: <b>{m.targetVersion}</b>
+                      </p>
+                    )}
                   </div>
                   <Avatar who="user" />
                 </div>

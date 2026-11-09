@@ -28,6 +28,7 @@ export default function RegisterPage() {
         data: {
           display_name: String(f.get("display_name")),
           target_language: String(f.get("target_language")),
+          native_language: String(f.get("native_language")),
           level: String(f.get("level")),
         },
       },
@@ -82,6 +83,12 @@ export default function RegisterPage() {
               {LEVELS.map((l) => <option key={l}>{l}</option>)}
             </select>
           </div>
+        </div>
+        <div>
+          <label htmlFor="native_language" className={labelClass}>My native language</label>
+          <select id="native_language" name="native_language" defaultValue="English" className={inputClass}>
+            {LANGUAGES.map((l) => <option key={l.name}>{l.name}</option>)}
+          </select>
         </div>
         {error && <p className="text-sm text-destructive" role="alert">{error}</p>}
         {notice && <p className="text-sm text-success" role="status">{notice}</p>}
