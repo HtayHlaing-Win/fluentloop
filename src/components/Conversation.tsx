@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, CircleAlert, CircleCheck, Lightbulb, Mic, Play, Send, Square, Volume2, VolumeX } from "lucide-react";
 import type { Feedback, TurnResponse } from "@/lib/types";
+import { toWav } from "@/lib/audio";
 import { categoryVisual } from "@/lib/scenario-visuals";
 import { inputClass } from "@/components/form-styles";
 import CoverImage from "@/components/CoverImage";
@@ -164,13 +165,14 @@ export default function Conversation(props: {
     setError("");
     const id = await ensureSession();
     if (!id) return setBusy(false);
-    if (userLabel) setMsgs((m) => [...m, { role: "user", text: userLabel }]);
+    // Typed turns show their text now; voice turns show a placeholder until transcribed.
+    setMsgs((m) => [...m, { role: "user", text: userLabel ?? "🎤 Transcribing…" }]);
     try {
       const res = await fetch(`/api/sessions/${id}/turn`, { method: "POST", headers, body });
       const j = await res.json();
       if (res.status === 429) {
         // Out of free turns: drop the unanswered typed bubble and show the upgrade popup.
-        if (userLabel) setMsgs((m) => m.slice(0, -1));
+        setMsgs((m) => m.slice(0, -1));
         setLimitHit({ used: j.turnsUsed, limit: j.dailyLimit });
         return;
       }
@@ -178,13 +180,14 @@ export default function Conversation(props: {
       const t = j as TurnResponse;
       setMsgs((m) => {
         // For audio turns the user bubble is added once we know the transcript.
-        const base = userLabel ? m : [...m, { role: "user" as const, text: t.transcript }];
+        const base = userLabel ? m : [...m.slice(0, -1), { role: "user" as const, text: t.transcript }];
         return [...base, { role: "ai", text: t.reply, audio: t.audioDataUrl ?? undefined }];
       });
       setFeedback(t.feedback);
       setNote(t.degraded ? "AI provider unavailable: showing demo reply and placeholder feedback." : "");
       if (!mutedRef.current) play(t.reply, t.audioDataUrl ?? undefined);
     } catch (e) {
+      setMsgs((m) => m.slice(0, -1));
       setError((e as Error).message);
     } finally {
       setBusy(false);
@@ -232,12 +235,13 @@ export default function Conversation(props: {
       const rec = new MediaRecorder(stream);
       chunks.current = [];
       rec.ondataavailable = (e) => e.data.size && chunks.current.push(e.data);
-      rec.onstop = () => {
+      rec.onstop = async () => {
         stream.getTracks().forEach((t) => t.stop());
         setRecording(false);
         const blob = new Blob(chunks.current, { type: rec.mimeType || "audio/webm" });
+        const wav = await toWav(blob);
         const form = new FormData();
-        form.append("audio", blob, "speech.webm");
+        form.append("audio", wav ?? blob, wav ? "speech.wav" : "speech.webm");
         void send(form);
       };
       rec.start();

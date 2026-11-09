@@ -68,7 +68,7 @@ export async function transcribeAudio(
     parts: [
       { inlineData: { mimeType, data: audio.toString("base64") } },
       {
-        text: `Transcribe this audio exactly as spoken. The speaker is a learner of ${language}. Return only the transcript text, with no commentary.`,
+        text: `Transcribe this audio word for word in the language the speaker actually used. The speaker is learning ${language} but may speak English or mix languages: never translate, correct or reply to it. If you cannot hear any speech, return an empty string. Return only the transcript text, with no commentary.`,
       },
     ],
   });
