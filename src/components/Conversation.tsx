@@ -6,10 +6,28 @@ import { useRouter } from "next/navigation";
 import { ChevronLeft, CircleAlert, CircleCheck, Lightbulb, Mic, Play, Send, Square, Volume2, VolumeX } from "lucide-react";
 import type { Feedback, TurnResponse } from "@/lib/types";
 import { toWav } from "@/lib/audio";
+import { langCode } from "@/lib/languages";
 import { categoryVisual } from "@/lib/scenario-visuals";
 import { inputClass } from "@/components/form-styles";
 import CoverImage from "@/components/CoverImage";
 import LimitModal from "@/components/LimitModal";
+
+/** Minimal typings for the browser speech-recognition API (Chrome, Edge, Safari). */
+interface SpeechRec {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  onresult: ((e: { results: ArrayLike<{ isFinal: boolean; 0: { transcript: string } }> }) => void) | null;
+  onerror: ((e: { error: string }) => void) | null;
+  onend: (() => void) | null;
+  start(): void;
+  stop(): void;
+}
+function speechRecognition(): (new () => SpeechRec) | null {
+  if (typeof window === "undefined") return null;
+  const w = window as unknown as { SpeechRecognition?: new () => SpeechRec; webkitSpeechRecognition?: new () => SpeechRec };
+  return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
+}
 
 interface Msg { role: "user" | "ai"; text: string; audio?: string; translation?: string; targetVersion?: string }
 
@@ -132,6 +150,11 @@ export default function Conversation(props: {
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [showNative, setShowNative] = useState(true);
+  // Which language the learner is speaking: their target language or their mother language.
+  const [speakNative, setSpeakNative] = useState(false);
+  const [interim, setInterim] = useState("");
+  const heard = useRef("");
+  const recog = useRef<SpeechRec | null>(null);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [recording, setRecording] = useState(false);
@@ -230,7 +253,48 @@ export default function Conversation(props: {
     void send(JSON.stringify({ text: v }), { "Content-Type": "application/json" }, v);
   }
 
+  /** Live speech-to-text in the browser: the learner sees their words as they speak. */
+  function startLiveSpeech(Ctor: new () => SpeechRec) {
+    const r = new Ctor();
+    r.lang = speakNative && props.nativeLanguage ? langCode(props.nativeLanguage) : props.speechLang;
+    r.continuous = true;
+    r.interimResults = true;
+    heard.current = "";
+    setInterim("");
+    r.onresult = (e) => {
+      let all = "";
+      for (let i = 0; i < e.results.length; i++) all += e.results[i][0].transcript;
+      heard.current = all;
+      setInterim(all);
+    };
+    r.onerror = (e) => {
+      if (e.error === "not-allowed" || e.error === "service-not-allowed") {
+        setError("Microphone blocked. Allow access in your browser, or type instead.");
+      } else if (e.error !== "no-speech" && e.error !== "aborted") {
+        setError(`Speech recognition problem (${e.error}). Try again or type instead.`);
+      }
+    };
+    r.onend = () => {
+      setRecording(false);
+      setInterim("");
+      const said = heard.current.trim();
+      if (said) sendText(said);
+      else setError((e) => e || "We couldn't hear anything. Try again, or type your message.");
+    };
+    recog.current = r;
+    setError("");
+    setRecording(true);
+    r.start();
+  }
+
   async function toggleMic() {
+    const Ctor = speechRecognition();
+    if (Ctor) {
+      if (recording) recog.current?.stop();
+      else startLiveSpeech(Ctor);
+      return;
+    }
+    // Browsers without speech recognition (e.g. Firefox): record audio and transcribe on the server.
     if (recording) {
       recorder.current?.stop();
       return;
@@ -418,6 +482,11 @@ export default function Conversation(props: {
                 <span className="text-[0.8rem] font-semibold text-primary">Listening...</span>
               </div>
             )}
+            {recording && interim && (
+              <p className="mx-auto mb-3 max-w-xl rounded-xl border bg-background px-4 py-2 text-center text-sm" aria-live="polite">
+                {interim}
+              </p>
+            )}
 
             <div className="flex items-center justify-center gap-4">
               <button
@@ -451,6 +520,28 @@ export default function Conversation(props: {
             <p className="mt-2 text-center text-xs text-muted-foreground">
               {recording ? "Tap to stop and send" : "Tap the microphone to speak"}
             </p>
+            {props.nativeLanguage && props.language && props.nativeLanguage !== props.language && (
+              <div className="mt-2 flex items-center justify-center gap-2 text-xs" role="group" aria-label="Language you speak">
+                <span className="text-muted-foreground">I speak:</span>
+                {[
+                  { label: props.language, native: false },
+                  { label: props.nativeLanguage, native: true },
+                ].map((o) => (
+                  <button
+                    key={o.label}
+                    type="button"
+                    disabled={recording}
+                    aria-pressed={speakNative === o.native}
+                    onClick={() => setSpeakNative(o.native)}
+                    className={`rounded-full border px-3 py-1 font-medium transition-colors disabled:opacity-50 ${
+                      speakNative === o.native ? "bg-primary text-primary-foreground" : "hover:bg-muted"
+                    }`}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            )}
 
             <form
               className="mx-auto mt-3 flex max-w-xl gap-2"
