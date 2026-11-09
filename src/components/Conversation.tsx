@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, CircleAlert, CircleCheck, Lightbulb, Mic, Play, Send, Square, Volume2, VolumeX } from "lucide-react";
+import { ChevronLeft, CircleAlert, Trash2, X, CircleCheck, Lightbulb, Mic, Play, Send, Square, Volume2, VolumeX } from "lucide-react";
 import type { Feedback, TurnResponse } from "@/lib/types";
 import { toWav } from "@/lib/audio";
 import { langCode } from "@/lib/languages";
@@ -158,6 +158,9 @@ export default function Conversation(props: {
   const raf = useRef(0);
   const capture = useRef<{ stream: MediaStream; rec: MediaRecorder; ctx: AudioContext } | null>(null);
   const [level, setLevel] = useState(0);
+  // A finished recording waits here so the learner can edit, send or delete it.
+  const [draft, setDraft] = useState<{ text?: string; blob?: Blob; url?: string } | null>(null);
+  const discard = useRef(false);
   const [noSignal, setNoSignal] = useState(false);
   const recog = useRef<SpeechRec | null>(null);
   const [text, setText] = useState("");
@@ -324,6 +327,7 @@ export default function Conversation(props: {
     r.continuous = true;
     r.interimResults = true;
     heard.current = "";
+    discard.current = false;
     setInterim("");
     r.onresult = (e) => {
       let all = "";
@@ -347,11 +351,15 @@ export default function Conversation(props: {
       setInterim("");
       const said = heard.current.trim();
       const blob = await stopCapture();
-      if (said) return sendText(said);
+      if (discard.current) {
+        discard.current = false;
+        return;
+      }
+      if (said) return setDraft({ text: said });
       if (blob && peak.current > 0.05) {
         // The browser heard nothing but the mic did pick up sound: let the AI transcribe it.
         setError("");
-        return void sendAudio(blob);
+        return setDraft({ blob, url: URL.createObjectURL(blob) });
       }
       setError(
         peak.current > 0
@@ -364,6 +372,25 @@ export default function Conversation(props: {
     setRecording(true);
     void startCapture();
     r.start();
+  }
+
+  function cancelRecording() {
+    discard.current = true;
+    if (recog.current && speechRecognition()) recog.current.stop();
+    else recorder.current?.stop();
+  }
+
+  function deleteDraft() {
+    if (draft?.url) URL.revokeObjectURL(draft.url);
+    setDraft(null);
+  }
+
+  function sendDraft() {
+    if (!draft) return;
+    const d = draft;
+    deleteDraft();
+    if (d.text?.trim()) sendText(d.text);
+    else if (d.blob) void sendAudio(d.blob);
   }
 
   async function toggleMic() {
@@ -387,10 +414,11 @@ export default function Conversation(props: {
         stream.getTracks().forEach((t) => t.stop());
         setRecording(false);
         const blob = new Blob(chunks.current, { type: rec.mimeType || "audio/webm" });
-        const wav = await toWav(blob);
-        const form = new FormData();
-        form.append("audio", wav ?? blob, wav ? "speech.wav" : "speech.webm");
-        void send(form);
+        if (discard.current) {
+          discard.current = false;
+          return;
+        }
+        setDraft({ blob, url: URL.createObjectURL(blob) });
       };
       rec.start();
       recorder.current = rec;
@@ -573,6 +601,30 @@ export default function Conversation(props: {
                 )}
               </div>
             )}
+            {draft && (
+              <div className="mx-auto mb-4 max-w-xl rounded-xl border bg-background p-3">
+                {draft.url && <audio controls src={draft.url} className="mb-2 h-9 w-full" />}
+                {draft.text !== undefined ? (
+                  <textarea
+                    value={draft.text}
+                    onChange={(e) => setDraft({ ...draft, text: e.target.value })}
+                    rows={2}
+                    aria-label="What I heard. You can edit it before sending."
+                    className={`${inputClass} text-sm`}
+                  />
+                ) : (
+                  <p className="text-xs text-muted-foreground">Recording ready. The AI will transcribe it when you send.</p>
+                )}
+                <div className="mt-2 flex justify-end gap-2">
+                  <button type="button" onClick={deleteDraft} className="btn secondary flex items-center gap-1.5 px-3 text-sm">
+                    <Trash2 size={14} aria-hidden="true" /> Delete
+                  </button>
+                  <button type="button" onClick={sendDraft} disabled={busy} className="btn flex items-center gap-1.5 px-4 text-sm">
+                    <Send size={14} aria-hidden="true" /> Send
+                  </button>
+                </div>
+              </div>
+            )}
             {recording && interim && (
               <p className="mx-auto mb-3 max-w-xl rounded-xl border bg-background px-4 py-2 text-center text-sm" aria-live="polite">
                 {interim}
@@ -593,7 +645,7 @@ export default function Conversation(props: {
               <button
                 type="button"
                 onClick={toggleMic}
-                disabled={busy}
+                disabled={busy || !!draft}
                 aria-pressed={recording}
                 aria-label={recording ? "Stop and send" : "Speak"}
                 className={`flex h-16 w-16 items-center justify-center rounded-full transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
@@ -606,10 +658,21 @@ export default function Conversation(props: {
               </button>
 
               {/* Balances the mute button so the microphone stays centred. */}
-              <span className="h-11 w-11" aria-hidden="true" />
+              {recording ? (
+                <button
+                  type="button"
+                  onClick={cancelRecording}
+                  aria-label="Cancel recording"
+                  className="flex h-11 w-11 items-center justify-center rounded-full border text-muted-foreground transition-colors hover:bg-muted hover:text-destructive"
+                >
+                  <X size={18} aria-hidden="true" />
+                </button>
+              ) : (
+                <span className="h-11 w-11" aria-hidden="true" />
+              )}
             </div>
             <p className="mt-2 text-center text-xs text-muted-foreground">
-              {recording ? "Tap to stop and send" : "Tap the microphone to speak"}
+              {recording ? "Tap to stop, then review and send" : "Tap the microphone to speak"}
             </p>
             {props.nativeLanguage && props.language && props.nativeLanguage !== props.language && (
               <div className="mt-2 flex items-center justify-center gap-2 text-xs" role="group" aria-label="Language you speak">
