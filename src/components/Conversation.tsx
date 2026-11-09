@@ -154,6 +154,11 @@ export default function Conversation(props: {
   const [speakNative, setSpeakNative] = useState(false);
   const [interim, setInterim] = useState("");
   const heard = useRef("");
+  const peak = useRef(0);
+  const raf = useRef(0);
+  const capture = useRef<{ stream: MediaStream; rec: MediaRecorder; ctx: AudioContext } | null>(null);
+  const [level, setLevel] = useState(0);
+  const [noSignal, setNoSignal] = useState(false);
   const recog = useRef<SpeechRec | null>(null);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -253,6 +258,65 @@ export default function Conversation(props: {
     void send(JSON.stringify({ text: v }), { "Content-Type": "application/json" }, v);
   }
 
+  /** Records raw audio alongside speech recognition: drives the level meter and acts as a fallback. */
+  async function startCapture() {
+    peak.current = 0;
+    setLevel(0);
+    setNoSignal(false);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const ctx = new AudioContext();
+      const an = ctx.createAnalyser();
+      an.fftSize = 512;
+      ctx.createMediaStreamSource(stream).connect(an);
+      const buf = new Uint8Array(an.fftSize);
+      const tick = () => {
+        an.getByteTimeDomainData(buf);
+        let m = 0;
+        for (const v of buf) m = Math.max(m, Math.abs(v - 128));
+        const lvl = m / 128;
+        peak.current = Math.max(peak.current, lvl);
+        setLevel(lvl);
+        raf.current = requestAnimationFrame(tick);
+      };
+      tick();
+      const rec = new MediaRecorder(stream);
+      chunks.current = [];
+      rec.ondataavailable = (e) => e.data.size && chunks.current.push(e.data);
+      rec.start();
+      capture.current = { stream, rec, ctx };
+      window.setTimeout(() => {
+        if (capture.current && peak.current < 0.03) setNoSignal(true);
+      }, 3000);
+    } catch {
+      capture.current = null; // recognition reports permission problems itself
+    }
+  }
+
+  function stopCapture(): Promise<Blob | null> {
+    const c = capture.current;
+    capture.current = null;
+    cancelAnimationFrame(raf.current);
+    setLevel(0);
+    if (!c) return Promise.resolve(null);
+    void c.ctx.close();
+    return new Promise((resolve) => {
+      c.rec.onstop = () => {
+        c.stream.getTracks().forEach((t) => t.stop());
+        resolve(chunks.current.length ? new Blob(chunks.current, { type: c.rec.mimeType || "audio/webm" }) : null);
+      };
+      if (c.rec.state !== "inactive") c.rec.stop();
+      else c.rec.onstop?.(new Event("stop"));
+    });
+  }
+
+  async function sendAudio(raw: Blob) {
+    const wav = await toWav(raw);
+    const form = new FormData();
+    form.append("audio", wav ?? raw, wav ? "speech.wav" : "speech.webm");
+    void send(form);
+  }
+
   /** Live speech-to-text in the browser: the learner sees their words as they speak. */
   function startLiveSpeech(Ctor: new () => SpeechRec) {
     const r = new Ctor();
@@ -270,20 +334,35 @@ export default function Conversation(props: {
     r.onerror = (e) => {
       if (e.error === "not-allowed" || e.error === "service-not-allowed") {
         setError("Microphone blocked. Allow access in your browser, or type instead.");
+      } else if (e.error === "audio-capture") {
+        setError("No microphone found. Plug one in or choose the right input device in your system settings.");
+      } else if (e.error === "network") {
+        setError("Browser speech recognition could not reach its server. Using the AI to transcribe instead.");
       } else if (e.error !== "no-speech" && e.error !== "aborted") {
         setError(`Speech recognition problem (${e.error}). Try again or type instead.`);
       }
     };
-    r.onend = () => {
+    r.onend = async () => {
       setRecording(false);
       setInterim("");
       const said = heard.current.trim();
-      if (said) sendText(said);
-      else setError((e) => e || "We couldn't hear anything. Try again, or type your message.");
+      const blob = await stopCapture();
+      if (said) return sendText(said);
+      if (blob && peak.current > 0.05) {
+        // The browser heard nothing but the mic did pick up sound: let the AI transcribe it.
+        setError("");
+        return void sendAudio(blob);
+      }
+      setError(
+        peak.current > 0
+          ? "The microphone is too quiet. Move closer or raise its input volume, or type your message."
+          : "No sound is reaching the microphone. Check the input device in Windows and the lock icon in Chrome's address bar, or type your message.",
+      );
     };
     recog.current = r;
     setError("");
     setRecording(true);
+    void startCapture();
     r.start();
   }
 
@@ -480,6 +559,18 @@ export default function Conversation(props: {
                   ))}
                 </div>
                 <span className="text-[0.8rem] font-semibold text-primary">Listening...</span>
+              </div>
+            )}
+            {recording && (
+              <div className="mx-auto mb-3 max-w-xl">
+                <div className="h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden="true">
+                  <div className="h-full rounded-full bg-success transition-[width] duration-75" style={{ width: `${Math.min(100, level * 300)}%` }} />
+                </div>
+                {noSignal && (
+                  <p className="mt-1.5 text-center text-xs text-destructive" role="status">
+                    No sound detected. Check your microphone input device.
+                  </p>
+                )}
               </div>
             )}
             {recording && interim && (
