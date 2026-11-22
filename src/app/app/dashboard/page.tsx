@@ -3,7 +3,7 @@ import { BookOpen, ChevronRight, Flame, Layers, Mic, Target, TrendingUp, Trophy,
 import { createClient } from "@/lib/supabase/server";
 import { LineTrend } from "@/components/TrendChart";
 import Container from "@/components/Container";
-import ScoreCell from "@/components/ScoreCell";
+import type { Feedback } from "@/lib/types";
 
 const dayKey = (d: Date) => d.toISOString().slice(0, 10);
 
@@ -18,7 +18,17 @@ function streak(days: Set<string>): number {
   return n;
 }
 
-export default async function DashboardPage() {
+/** Groups like a chat app's sidebar: Today, Yesterday, Previous 7 days... */
+function groupOf(iso: string): string {
+  const hours = (Date.now() - new Date(iso).getTime()) / 36e5;
+  if (hours < 24) return "Today";
+  if (hours < 48) return "Yesterday";
+  if (hours < 24 * 7) return "Previous 7 days";
+  if (hours < 24 * 30) return "Previous 30 days";
+  return "Older";
+}
+
+export default async function DashboardPage({ searchParams }: { searchParams: { c?: string } }) {
   const supabase = createClient();
   const {
     data: { user },
@@ -27,7 +37,7 @@ export default async function DashboardPage() {
   const [{ data: sessions }, { count: cardCount }, { data: profile }] = await Promise.all([
     supabase
       .from("sessions")
-      .select("id, started_at, overall_score, language, scenarios(title), persona")
+      .select("id, started_at, overall_score, language, scenario_id, scenarios(title), persona")
       .eq("user_id", user!.id)
       .order("started_at", { ascending: false })
       .limit(200),
@@ -38,6 +48,21 @@ export default async function DashboardPage() {
   const list = sessions ?? [];
   const titleOf = (s: (typeof list)[number]) =>
     (s.scenarios as unknown as { title: string } | null)?.title ?? `Free Talk (${s.persona ?? "open"})`;
+  const selected = list.find((s) => s.id === searchParams.c) ?? list[0];
+  const { data: chatTurns } = selected
+    ? await supabase
+        .from("turns")
+        .select("id, user_transcript, ai_text, feedback, created_at")
+        .eq("session_id", selected.id)
+        .order("created_at")
+    : { data: [] };
+  const groups: { name: string; items: typeof list }[] = [];
+  for (const s of list.slice(0, 60)) {
+    const name = groupOf(s.started_at);
+    const g = groups.find((x) => x.name === name);
+    if (g) g.items.push(s);
+    else groups.push({ name, items: [s] });
+  }
   const scored = list.filter((s) => s.overall_score != null);
   const avg = scored.length
     ? Math.round(scored.reduce((a, s) => a + (s.overall_score as number), 0) / scored.length)
@@ -169,38 +194,6 @@ export default async function DashboardPage() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        <section className="rounded-2xl border bg-card p-6 lg:col-span-2" aria-label="Recent conversations">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <h2>Recent conversations</h2>
-            <Link href="/app/history" className="flex items-center gap-1 text-[0.85rem] font-medium text-primary hover:underline">
-              View all <ChevronRight size={14} aria-hidden="true" />
-            </Link>
-          </div>
-          {!list.length ? (
-            <p className="text-sm text-muted-foreground">
-              No conversations yet.{" "}
-              <Link href="/app/scenarios" className="font-medium text-primary hover:underline">Start one</Link>.
-            </p>
-          ) : (
-            <ul className="divide-y">
-              {list.slice(0, 6).map((s) => (
-                <li key={s.id}>
-                  <Link href={`/app/history?c=${s.id}`} className="flex items-center justify-between gap-3 py-3 transition-colors hover:text-primary">
-                    <span className="min-w-0">
-                      <span className="block truncate text-sm font-medium">{titleOf(s)}</span>
-                      <span className="block text-xs text-muted-foreground">{new Date(s.started_at).toLocaleString()}</span>
-                    </span>
-                    <span className="flex shrink-0 items-center gap-2">
-                      {s.language && <span className="rounded-full bg-secondary px-2.5 py-0.5 text-xs font-semibold text-primary">{s.language}</span>}
-                      <ScoreCell value={s.overall_score} />
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-
         <section className="rounded-2xl border bg-card p-6" aria-label="Vocabulary">
           <h2 className="mb-4">Vocabulary</h2>
           <div className="flex items-center gap-3 rounded-xl border bg-background p-3">
@@ -225,6 +218,137 @@ export default async function DashboardPage() {
           </div>
         </section>
       </div>
+
+      <section id="conversations" className="mt-6 scroll-mt-20 overflow-hidden rounded-2xl border bg-card" aria-label="Conversations">
+        {!list.length ? (
+          <div className="p-6">
+            <h2 className="mb-2">Conversations</h2>
+            <p className="text-sm text-muted-foreground">
+              No conversations yet.{" "}
+              <Link href="/app/scenarios" className="font-medium text-primary hover:underline">Start one</Link>.
+            </p>
+          </div>
+        ) : (
+          <div className="grid md:h-[36rem] md:grid-cols-[18rem_1fr]">
+            <div className="flex max-h-72 min-h-0 flex-col border-b md:max-h-none md:border-r md:border-b-0">
+              <div className="flex items-center justify-between gap-2 px-4 py-4">
+                <h2>Conversations</h2>
+                <Link href="/app/scenarios" className="btn rounded-xl px-3 py-1.5 text-sm">
+                  <Mic size={14} aria-hidden="true" /> New
+                </Link>
+              </div>
+              <nav className="flex-1 space-y-4 overflow-y-auto px-2 pb-4" aria-label="Previous conversations">
+                {groups.map((g) => (
+                  <div key={g.name}>
+                    <div className="px-3 pb-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase">{g.name}</div>
+                    {g.items.map((s) => {
+                      const active = s.id === selected?.id;
+                      return (
+                        <Link
+                          key={s.id}
+                          href={`/app/dashboard?c=${s.id}#conversations`}
+                          scroll={false}
+                          aria-current={active ? "true" : undefined}
+                          className={`block rounded-lg px-3 py-2 transition-colors ${active ? "bg-secondary" : "hover:bg-muted"}`}
+                        >
+                          <div className={`truncate text-sm ${active ? "font-semibold text-primary" : "font-medium"}`}>{titleOf(s)}</div>
+                          <div className="mt-0.5 flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                            <span>{new Date(s.started_at).toLocaleDateString("en-AU", { day: "numeric", month: "short" })}</span>
+                            <span className="flex shrink-0 items-center gap-1.5">
+                              {s.language}
+                              {s.overall_score != null && <b className="text-foreground">{s.overall_score}</b>}
+                            </span>
+                          </div>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                ))}
+              </nav>
+            </div>
+
+            <div className="flex min-h-0 min-w-0 flex-col">
+              {selected && (
+                <>
+                  <header className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3 sm:px-6">
+                    <div className="min-w-0">
+                      <h3 className="truncate text-base">{titleOf(selected)}</h3>
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(selected.started_at).toLocaleString("en-AU")} · {chatTurns?.length ?? 0} turns
+                        {selected.overall_score != null && ` · score ${selected.overall_score}`}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <Link href={`/app/sessions/${selected.id}`} className="btn secondary px-3 py-1.5 text-sm">Summary</Link>
+                      <Link
+                        href={selected.scenario_id ? `/app/practice/${selected.scenario_id}` : "/app/free-talk"}
+                        className="btn px-3 py-1.5 text-sm"
+                      >
+                        Practise again
+                      </Link>
+                    </div>
+                  </header>
+                  <div className="max-h-[32rem] flex-1 overflow-y-auto px-4 py-6 sm:px-6 md:max-h-none">
+                    <div className="mx-auto max-w-3xl space-y-6">
+                      {!chatTurns?.length && <p className="text-center text-sm text-muted-foreground">No messages in this conversation.</p>}
+                      {(chatTurns ?? []).map((t) => {
+                        const fb = (t.feedback ?? {}) as Partial<Feedback>;
+                        const hasFeedback = fb.grammar_score != null || fb.corrections?.length || fb.vocabulary?.length;
+                        return (
+                          <div key={t.id} className="space-y-3">
+                            <div className="flex justify-end">
+                              <div className="max-w-[85%] rounded-2xl rounded-tr-sm bg-primary px-4 py-2.5 text-primary-foreground">
+                                <p className="text-[0.92rem] leading-relaxed whitespace-pre-wrap">{t.user_transcript}</p>
+                                {fb.target_version && (
+                                  <p className="mt-1.5 border-t border-white/30 pt-1.5 text-[0.82rem]">Better: <b>{fb.target_version}</b></p>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex">
+                              <div className="max-w-[85%] rounded-2xl rounded-tl-sm border bg-background px-4 py-2.5">
+                                <p className="text-[0.92rem] leading-relaxed whitespace-pre-wrap">{t.ai_text}</p>
+                                {fb.reply_translation && (
+                                  <p className="mt-1.5 border-t pt-1.5 text-[0.82rem] leading-relaxed whitespace-pre-wrap text-muted-foreground">
+                                    {fb.reply_translation}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                            {hasFeedback && (
+                              <details className="ml-2 text-sm">
+                                <summary className="cursor-pointer text-[0.8rem] font-medium text-primary select-none">Feedback</summary>
+                                <div className="mt-2 space-y-2 rounded-xl border bg-background p-3">
+                                  <div className="flex flex-wrap gap-2 text-xs">
+                                    {fb.grammar_score != null && <span className="rounded-full bg-secondary px-2.5 py-1">Grammar {fb.grammar_score}</span>}
+                                    {fb.pronunciation_score != null && <span className="rounded-full bg-secondary px-2.5 py-1">Pronunciation (est.) {fb.pronunciation_score}</span>}
+                                    {fb.vocabulary_score != null && <span className="rounded-full bg-secondary px-2.5 py-1">Vocabulary {fb.vocabulary_score}</span>}
+                                  </div>
+                                  {fb.corrections?.map((c, i) => (
+                                    <p key={i} className="text-[0.85rem]">
+                                      <s className="text-muted-foreground">{c.original}</s> → <b>{c.corrected}</b>
+                                      <span className="block text-xs text-muted-foreground">{c.explanation}</span>
+                                    </p>
+                                  ))}
+                                  {!!fb.vocabulary?.length && (
+                                    <p className="text-[0.85rem]">
+                                      <span className="text-xs text-muted-foreground">New words: </span>
+                                      {fb.vocabulary.map((v) => `${v.word} (${v.translation})`).join(", ")}
+                                    </p>
+                                  )}
+                                </div>
+                              </details>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+      </section>
     </Container>
   );
 }
