@@ -3,7 +3,7 @@ import { BookOpen, ChevronRight, Flame, Layers, Mic, Target, TrendingUp, Trophy,
 import { createClient } from "@/lib/supabase/server";
 import { LineTrend } from "@/components/TrendChart";
 import Container from "@/components/Container";
-import type { Feedback } from "@/lib/types";
+import ScoreCell from "@/components/ScoreCell";
 
 const dayKey = (d: Date) => d.toISOString().slice(0, 10);
 
@@ -18,7 +18,7 @@ function streak(days: Set<string>): number {
   return n;
 }
 
-export default async function DashboardPage({ searchParams }: { searchParams: { c?: string } }) {
+export default async function DashboardPage() {
   const supabase = createClient();
   const {
     data: { user },
@@ -36,14 +36,6 @@ export default async function DashboardPage({ searchParams }: { searchParams: { 
   ]);
 
   const list = sessions ?? [];
-  const selected = list.find((s) => s.id === searchParams.c) ?? list[0];
-  const { data: chatTurns } = selected
-    ? await supabase
-        .from("turns")
-        .select("id, user_transcript, ai_text, feedback, created_at")
-        .eq("session_id", selected.id)
-        .order("created_at")
-    : { data: [] };
   const titleOf = (s: (typeof list)[number]) =>
     (s.scenarios as unknown as { title: string } | null)?.title ?? `Free Talk (${s.persona ?? "open"})`;
   const scored = list.filter((s) => s.overall_score != null);
@@ -177,88 +169,35 @@ export default async function DashboardPage({ searchParams }: { searchParams: { 
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        <section id="conversations" className="rounded-2xl border bg-card p-4 sm:p-6 lg:col-span-2" aria-label="Conversations">
-          <h2 className="mb-4">Conversations</h2>
+        <section className="rounded-2xl border bg-card p-6 lg:col-span-2" aria-label="Recent conversations">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h2>Recent conversations</h2>
+            <Link href="/app/history" className="flex items-center gap-1 text-[0.85rem] font-medium text-primary hover:underline">
+              View all <ChevronRight size={14} aria-hidden="true" />
+            </Link>
+          </div>
           {!list.length ? (
             <p className="text-sm text-muted-foreground">
               No conversations yet.{" "}
               <Link href="/app/scenarios" className="font-medium text-primary hover:underline">Start one</Link>.
             </p>
           ) : (
-            <div className="grid gap-4 md:grid-cols-[14rem_1fr]">
-              <nav aria-label="Previous conversations" className="max-h-64 space-y-1 overflow-y-auto md:max-h-[34rem]">
-                {list.slice(0, 40).map((s) => {
-                  const active = s.id === selected?.id;
-                  return (
-                    <Link
-                      key={s.id}
-                      href={`/app/dashboard?c=${s.id}#conversations`}
-                      scroll={false}
-                      aria-current={active ? "true" : undefined}
-                      className={`block rounded-xl px-3 py-2.5 transition-colors ${
-                        active ? "bg-secondary" : "hover:bg-muted"
-                      }`}
-                    >
-                      <div className={`truncate text-sm ${active ? "font-semibold text-primary" : "font-medium"}`}>{titleOf(s)}</div>
-                      <div className="mt-0.5 flex items-center justify-between gap-2 text-xs text-muted-foreground">
-                        <span className="truncate">{new Date(s.started_at).toLocaleString()}</span>
-                        {s.language && <span className="shrink-0 rounded-full bg-background px-2 py-0.5">{s.language}</span>}
-                      </div>
-                    </Link>
-                  );
-                })}
-              </nav>
-
-              <div className="min-w-0 rounded-xl border bg-background">
-                {selected && (
-                  <>
-                    <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
-                      <div className="min-w-0">
-                        <div className="truncate text-sm font-semibold">{titleOf(selected)}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {chatTurns?.length ?? 0} turns · score {selected.overall_score ?? "-"}
-                        </div>
-                      </div>
-                      <Link href={`/app/sessions/${selected.id}`} className="text-[0.8rem] font-medium text-primary hover:underline">
-                        Full summary
-                      </Link>
-                    </div>
-                    <div className="max-h-[30rem] space-y-4 overflow-y-auto p-4">
-                      {!chatTurns?.length && <p className="text-sm text-muted-foreground">No messages in this conversation.</p>}
-                      {(chatTurns ?? []).map((t) => {
-                        const fb = (t.feedback ?? {}) as Partial<Feedback>;
-                        const fix = fb.corrections?.[0];
-                        return (
-                          <div key={t.id} className="space-y-2">
-                            <div className="flex justify-end">
-                              <div className="max-w-[85%] rounded-2xl rounded-tr-none bg-primary px-4 py-2.5 text-primary-foreground">
-                                <p className="text-sm whitespace-pre-wrap">{t.user_transcript}</p>
-                                {fb.target_version && (
-                                  <p className="mt-1 border-t border-white/30 pt-1 text-xs">Better: <b>{fb.target_version}</b></p>
-                                )}
-                              </div>
-                            </div>
-                            {fix && (
-                              <p className="text-right text-xs text-muted-foreground">
-                                <s>{fix.original}</s> → <b className="text-foreground">{fix.corrected}</b>
-                              </p>
-                            )}
-                            <div className="flex">
-                              <div className="max-w-[85%] rounded-2xl rounded-tl-none border bg-card px-4 py-2.5">
-                                <p className="text-sm whitespace-pre-wrap">{t.ai_text}</p>
-                                {fb.reply_translation && (
-                                  <p className="mt-1 border-t pt-1 text-xs whitespace-pre-wrap text-muted-foreground">{fb.reply_translation}</p>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
+            <ul className="divide-y">
+              {list.slice(0, 6).map((s) => (
+                <li key={s.id}>
+                  <Link href={`/app/history?c=${s.id}`} className="flex items-center justify-between gap-3 py-3 transition-colors hover:text-primary">
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-medium">{titleOf(s)}</span>
+                      <span className="block text-xs text-muted-foreground">{new Date(s.started_at).toLocaleString()}</span>
+                    </span>
+                    <span className="flex shrink-0 items-center gap-2">
+                      {s.language && <span className="rounded-full bg-secondary px-2.5 py-0.5 text-xs font-semibold text-primary">{s.language}</span>}
+                      <ScoreCell value={s.overall_score} />
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
           )}
         </section>
 
